@@ -128,8 +128,107 @@ function viewRunProgress(id, run) {
 async function viewResult(id, run) {
   const body = document.getElementById("runbody");
   const d = await api(`/api/runs/${encodeURIComponent(id)}/data`);
-  body.innerHTML = renderStats(run, d) + `<div class="panel"><p class="muted">Player and review table arrive in the next milestones.</p>
-    <p><a href="/files/${encodeURIComponent(id)}/mixed.mp3">mixed.mp3</a> · <a href="/files/${encodeURIComponent(id)}/ad.vtt">ad.vtt</a></p></div>`;
+  const bust = Date.now();
+  const f = p => `/files/${encodeURIComponent(id)}/${p}?v=${bust}`;
+  body.innerHTML = renderStats(run, d) + `
+  <section class="panel player">
+    <div class="stage" id="stage">
+      <video id="vid" src="/video/${encodeURIComponent(id)}" preload="auto" playsinline muted>
+        <track kind="captions" srclang="en" label="Audio description" src="${f("ad.vtt")}" default>
+      </video>
+      <div class="blind" id="blind" hidden><span>Picture hidden. Listen as a blind viewer would.</span></div>
+    </div>
+    <audio id="aud" src="${f("mixed.mp3")}" preload="auto"></audio>
+    <div class="controls">
+      <button id="play" class="primary">▶ Play</button>
+      <span class="time" id="time">0:00.0</span>
+      <div class="seg" role="radiogroup" aria-label="Audio">
+        <button data-mode="ad" class="on" role="radio" aria-checked="true">AD mix</button>
+        <button data-mode="orig" role="radio" aria-checked="false">Original</button>
+      </div>
+      <label class="check inline"><input type="checkbox" id="hidepic"> Hide picture</label>
+      <label class="check inline"><input type="checkbox" id="showcc" checked> Show AD text</label>
+    </div>
+    <div class="timeline" id="tl" title="Click to seek">
+      <div class="lane"><span class="lane-k">Dialogue</span><div class="lane-v" id="lane-d"></div></div>
+      <div class="lane"><span class="lane-k">Windows</span><div class="lane-v" id="lane-w"></div></div>
+      <div class="lane"><span class="lane-k">Narration</span><div class="lane-v" id="lane-n"></div></div>
+      <div class="cursor" id="cursor"></div>
+    </div>
+    <div class="now" id="now"><span class="muted">The current narration appears here.</span></div>
+    <p class="small muted">Space = play/pause · ←/→ = 5 s · click the timeline to seek ·
+      <a href="${f("mixed.mp3")}" download>mixed.mp3</a> · <a href="${f("ad.vtt")}" download>ad.vtt</a> · <a href="${f("ad_track.wav")}" download>ad_track.wav</a></p>
+  </section>
+  <div id="review"></div>`;
+  setupPlayer(d, run);
+  if (typeof renderReview === "function") renderReview(id, d);
+}
+
+function setupPlayer(d, run) {
+  const vid = document.getElementById("vid"), aud = document.getElementById("aud");
+  const play = document.getElementById("play"), timeEl = document.getElementById("time");
+  const dur = run.duration || (d.stats.video_info || {}).duration || 1;
+  let mode = "ad";
+  const kept = d.narrations.filter(n => n.status === "kept");
+  const pct = t => `${(100 * t / dur).toFixed(3)}%`;
+  const bar = (a, b, cls, title) => a >= dur ? "" : `<i class="${cls}" style="left:${pct(a)};width:${pct(Math.max(Math.min(b, dur) - a, dur / 2000))}" title="${esc(title)}"></i>`;
+  document.getElementById("lane-d").innerHTML = d.dialogue.map(l => bar(l.start, l.end, "b-d", `${fmtT(l.start)} ${l.text}`)).join("");
+  document.getElementById("lane-w").innerHTML = d.windows.map(w => bar(w.start, w.end, "b-w", `${w.id} ${fmtT(w.start)}–${fmtT(w.end)}`)).join("");
+  document.getElementById("lane-n").innerHTML = kept.map(n => bar(n.actual_start, n.actual_end, "b-n", `${n.window_id}: ${n.text_used}`)).join("");
+
+  const sync = force => {
+    if (mode !== "ad") return;
+    if (force || Math.abs(aud.currentTime - vid.currentTime) > 0.25) aud.currentTime = vid.currentTime;
+  };
+  const setMode = m => {
+    mode = m;
+    document.querySelectorAll(".seg button").forEach(b => { const on = b.dataset.mode === m; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
+    vid.muted = m === "ad";
+    if (m === "ad") { sync(true); if (!vid.paused) aud.play(); } else aud.pause();
+  };
+  document.querySelectorAll(".seg button").forEach(b => b.onclick = () => setMode(b.dataset.mode));
+  const toggle = () => vid.paused ? vid.play() : vid.pause();
+  play.onclick = toggle;
+  vid.addEventListener("click", toggle);
+  vid.addEventListener("play", () => { play.textContent = "❚❚ Pause"; if (mode === "ad") { sync(true); aud.play(); } });
+  vid.addEventListener("pause", () => { play.textContent = "▶ Play"; aud.pause(); });
+  vid.addEventListener("seeked", () => sync(true));
+  vid.addEventListener("waiting", () => aud.pause());
+  vid.addEventListener("playing", () => { if (mode === "ad") { sync(true); aud.play(); } });
+  vid.addEventListener("ended", () => aud.pause());
+  const now = document.getElementById("now"), cursor = document.getElementById("cursor");
+  let lastId;
+  const onTime = () => {
+    const t = vid.currentTime; timeEl.textContent = `${fmtT(t)} / ${fmtT(dur)}`;
+    cursor.style.left = `calc(88px + (100% - 96px) * ${t / dur})`; sync(false);
+    const n = kept.find(n => t >= n.actual_start && t <= n.actual_end);
+    const id = n ? n.window_id : null;
+    if (id !== lastId) {
+      lastId = id;
+      now.innerHTML = n ? `<span class="chip">${esc(n.window_id)}</span> ${esc(n.text_used)}` : `<span class="muted">—</span>`;
+      document.querySelectorAll("tr.nrow").forEach(tr => tr.classList.toggle("playing", tr.dataset.id === id));
+    }
+  };
+  vid.addEventListener("timeupdate", onTime);
+  vid.addEventListener("seeked", onTime);
+  document.getElementById("tl").onclick = e => {
+    const r = e.currentTarget.querySelector(".lane-v").getBoundingClientRect();
+    vid.currentTime = Math.min(dur, Math.max(0, (e.clientX - r.left) / r.width * dur));
+  };
+  document.getElementById("hidepic").onchange = e => {
+    document.getElementById("blind").hidden = !e.target.checked;
+    vid.style.visibility = e.target.checked ? "hidden" : "visible";
+  };
+  const track = () => vid.textTracks[0];
+  document.getElementById("showcc").onchange = e => { if (track()) track().mode = e.target.checked ? "showing" : "hidden"; };
+  vid.addEventListener("loadedmetadata", () => { if (track()) track().mode = "showing"; });
+  window.seekTo = t => { vid.currentTime = t; document.getElementById("stage").scrollIntoView({ block: "nearest", behavior: "smooth" }); };
+  document.onkeydown = e => {
+    if (!document.getElementById("vid") || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(e.target.tagName)) return;
+    if (e.code === "Space") { e.preventDefault(); toggle(); }
+    if (e.code === "ArrowRight") vid.currentTime = Math.min(dur, vid.currentTime + 5);
+    if (e.code === "ArrowLeft") vid.currentTime = Math.max(0, vid.currentTime - 5);
+  };
 }
 
 function renderStats(run, d) {
