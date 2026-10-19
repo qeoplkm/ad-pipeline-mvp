@@ -267,6 +267,40 @@ def cancel_run(run_id: str):
     return {"ok": True}
 
 
+# ---------------------------------------------------------------- review: edit + re-render
+_rerender: dict[str, dict] = {}
+
+
+@app.post("/api/runs/{run_id}/narrations")
+async def save_narrations(run_id: str, payload: dict):
+    out = _out_dir(run_id)
+    if _status(run_id) != "done":
+        raise HTTPException(400, "run is not finished")
+    if _rerender.get(run_id, {}).get("state") == "running":
+        raise HTTPException(409, "a re-render is already running")
+    edits = payload.get("edits") or []
+    if not isinstance(edits, list):
+        raise HTTPException(400, "edits must be a list")
+    _rerender[run_id] = {"state": "running", "started": time.time()}
+
+    def work():
+        from adpipe.rerender import rerender
+        try:
+            res = rerender(out, edits)
+            _rerender[run_id] = {"state": "done", "result": res, "finished": time.time()}
+        except Exception as e:  # surfaced to the UI
+            _rerender[run_id] = {"state": "failed", "error": f"{type(e).__name__}: {e}"}
+
+    threading.Thread(target=work, daemon=True).start()
+    return {"ok": True}
+
+
+@app.get("/api/runs/{run_id}/rerender")
+def rerender_status(run_id: str):
+    _out_dir(run_id)
+    return _rerender.get(run_id, {"state": "idle"})
+
+
 # ---------------------------------------------------------------- data and files
 @app.get("/api/runs/{run_id}/data")
 def run_data(run_id: str):

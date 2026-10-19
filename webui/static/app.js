@@ -254,3 +254,114 @@ function route() {
 }
 window.addEventListener("hashchange", route);
 route();
+
+// ------------------------------------------------------------------ review table (milestone 3)
+const countUnits = (text, lang) => lang === "zh"
+  ? [...(text || "")].filter(c => /[\p{L}\p{N}]/u.test(c)).length
+  : ((text || "").match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g) || []).length;
+
+function renderReview(id, d) {
+  const el = document.getElementById("review"); if (!el) return;
+  const lang = (d.stats.config || {}).lang || "en";
+  const unit = lang === "zh" ? "chars" : "words";
+  const wins = Object.fromEntries(d.windows.map(w => [w.id, w]));
+  const rows = d.narrations;
+  const original = {};
+  rows.forEach(n => original[n.window_id] = { narration: n.text_used || n.narration || "", narration_short: n.narration_short || "", disabled: !!n.disabled });
+  const review = d.stats.review;
+  el.innerHTML = `<section class="panel">
+    <div class="rev-head">
+      <h2>Review narration</h2>
+      <div class="seg" role="radiogroup" aria-label="Filter">
+        <button data-f="all" class="on">All (${rows.length})</button>
+        <button data-f="kept">Played (${rows.filter(n => n.status === "kept").length})</button>
+        <button data-f="silent">Silent (${rows.filter(n => n.status !== "kept").length})</button>
+        <button data-f="changed">Changed</button>
+      </div>
+      <span class="grow"></span>
+      <span id="revmsg" class="muted small">${review ? `Reviewed: ${review.edited_total} edited so far.` : "Edit text, then save to re-synthesize and re-mix (no model call)."}</span>
+      <button id="revsave" class="primary" disabled>Save &amp; re-render</button>
+    </div>
+    <div class="tablewrap"><table class="rev">
+      <thead><tr><th>Window</th><th>Frames</th><th>Score</th><th>Narration (${unit} / budget)</th><th></th></tr></thead>
+      <tbody>${rows.map(n => {
+        const w = wins[n.window_id] || {};
+        const text = original[n.window_id].narration;
+        const before = (w.context_before || []).slice(-1).map(l => l.text).join(" ");
+        const after = (w.context_after || []).slice(0, 1).map(l => l.text).join(" ");
+        return `<tr class="nrow st-${esc(n.status)}" data-id="${esc(n.window_id)}">
+          <td class="nowrap"><button class="link seek" data-t="${w.start}" title="Play from here">${esc(n.window_id)}</button>
+            <div class="small muted">${fmtT(w.start)}–${fmtT(w.end)}</div><div class="small muted">${(w.duration || 0).toFixed(1)} s</div>
+            <div class="small">${statusLabel(n)}</div></td>
+          <td><a href="/files/${encodeURIComponent(id)}/${esc(w.grid || "")}" target="_blank" rel="noopener"><img class="thumb" loading="lazy" alt="Key frames for ${esc(n.window_id)}" src="/files/${encodeURIComponent(id)}/${esc(w.grid || "")}"></a></td>
+          <td class="score">${n.importance_score ?? "—"}</td>
+          <td class="edit">
+            ${before ? `<div class="ctx small muted">◀ ${esc(before)}</div>` : ""}
+            <textarea class="t-main" rows="2" aria-label="Narration for ${esc(n.window_id)}">${esc(text)}</textarea>
+            <div class="meta small"><span class="cnt"></span>
+              <details><summary>short version</summary><textarea class="t-short" rows="1" aria-label="Short narration for ${esc(n.window_id)}">${esc(original[n.window_id].narration_short)}</textarea></details>
+              ${n.edited && n.model_narration ? `<details><summary>model's original</summary><div class="muted">${esc(n.model_narration)}</div></details>` : ""}
+              ${(n.fit_log || []).length && n.status !== "kept" ? `<span class="warn">${esc((n.fit_log || []).join("; "))}</span>` : ""}
+            </div>
+            ${after ? `<div class="ctx small muted">▶ ${esc(after)}</div>` : ""}
+          </td>
+          <td class="nowrap"><label class="check inline small"><input type="checkbox" class="t-off" ${n.disabled ? "checked" : ""}> mute</label></td>
+        </tr>`; }).join("")}</tbody></table></div></section>`;
+
+  const save = document.getElementById("revsave"), msg = document.getElementById("revmsg");
+  const state = tr => ({ narration: tr.querySelector(".t-main").value.trim(), narration_short: tr.querySelector(".t-short").value.trim(),
+    disabled: tr.querySelector(".t-off").checked });
+  const isChanged = tr => { const o = original[tr.dataset.id], s = state(tr);
+    return s.narration !== o.narration.trim() || s.narration_short !== o.narration_short.trim() || s.disabled !== o.disabled; };
+  const refresh = tr => {
+    const w = wins[tr.dataset.id] || {}, s = state(tr);
+    const c = countUnits(s.narration, lang), b = w.budget ?? 0;
+    const cnt = tr.querySelector(".cnt");
+    cnt.textContent = `${c} / ${b} ${unit}`; cnt.classList.toggle("over", c > b);
+    tr.classList.toggle("changed", isChanged(tr));
+    const n = document.querySelectorAll("tr.nrow.changed").length;
+    save.disabled = n === 0; save.textContent = n ? `Save & re-render (${n})` : "Save & re-render";
+  };
+  el.querySelectorAll("tr.nrow").forEach(tr => {
+    refresh(tr);
+    tr.querySelectorAll("textarea, input").forEach(i => i.addEventListener("input", () => refresh(tr)));
+  });
+  el.querySelectorAll(".seek").forEach(b => b.onclick = () => {
+    const v = document.getElementById("vid"); window.seekTo(Math.max(0, +b.dataset.t - 1)); v.play();
+  });
+  el.querySelectorAll(".rev-head .seg button").forEach(b => b.onclick = () => {
+    el.querySelectorAll(".rev-head .seg button").forEach(x => x.classList.toggle("on", x === b));
+    const f = b.dataset.f;
+    el.querySelectorAll("tr.nrow").forEach(tr => {
+      const kept = tr.classList.contains("st-kept");
+      tr.hidden = f === "kept" ? !kept : f === "silent" ? kept : f === "changed" ? !tr.classList.contains("changed") : false;
+    });
+  });
+  save.onclick = async () => {
+    const edits = [...el.querySelectorAll("tr.nrow.changed")].map(tr => ({ window_id: tr.dataset.id, ...state(tr) }));
+    save.disabled = true; msg.textContent = `Re-rendering ${edits.length} change(s)…`;
+    try {
+      await api(`/api/runs/${encodeURIComponent(id)}/narrations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ edits }) });
+      const poll = async () => {
+        const s = await api(`/api/runs/${encodeURIComponent(id)}/rerender`);
+        if (s.state === "running") return setTimeout(poll, 1000);
+        if (s.state === "failed") { msg.innerHTML = `<span class="err">${esc(s.error)}</span>`; save.disabled = false; return; }
+        const y = window.scrollY;
+        await viewRun(id); window.scrollTo(0, y);
+        const m = document.getElementById("revmsg");
+        if (m) m.textContent = `Re-rendered in ${s.result.seconds} s: ${s.result.kept} narrations play, ${s.result.dropped} dropped (too long).`;
+      };
+      poll();
+    } catch (e) { msg.innerHTML = `<span class="err">${esc(e.message)}</span>`; save.disabled = false; }
+  };
+}
+
+function statusLabel(n) {
+  const map = { kept: "plays", filtered_low_score: "silent (low score)", dropped_too_long: "dropped: too long", disabled: "muted by reviewer",
+    missing_in_response: "model skipped", tts_error: "TTS error" };
+  let s = map[n.status] || n.status;
+  if (n.status === "kept" && n.variant === "short") s += " · short";
+  if (n.status === "kept" && n.stretch > 1.0) s += ` · ${n.stretch.toFixed(2)}x`;
+  if (n.edited) s += " · edited";
+  return `<span class="chip">${esc(s)}</span>`;
+}
