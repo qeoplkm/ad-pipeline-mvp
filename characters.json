@@ -1,0 +1,8 @@
+{
+  "_comment": "Character list: name + visible description. Leave the array empty to make the model use visible identifiers such as 'the woman in the red dress'. Filled here for the validation clip Tears of Steel (first 8 minutes); only characters verified against frames and dialogue are listed.",
+  "characters": [
+    {"name": "Thom", "description": "as a young man (opening flashback on the canal bridge): dark hair, dark leather jacket over a patterned shirt; 40 years later: grey hair and grey beard, plaid flannel shirt"},
+    {"name": "Celia", "description": "young woman with red hair tied back, blue-and-black jacket, a metal robotic right hand"},
+    {"name": "Barley", "description": "Black man in dark combat gear who keeps watch with a large rifle"}
+  ]
+}

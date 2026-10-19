@@ -1,0 +1,28 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# environments and caches
+.venv/
+.cache/
+.uv-cache/
+__pycache__/
+*.pyc
+
+# media and run outputs (test clips may be copyrighted; outputs contain frames and audio)
+input/
+out/
+out_*/
+tests/synthetic*/
+*.mp4
+*.mp3
+*.wav
+*.mkv
+*.mov
+*.webm
+
+# misc
+install.log
+.DS_Store
+characters_kungfu_panda.json
