@@ -26,6 +26,10 @@ dependencies = [
     "tqdm",
     "pillow",
     "httpx",
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
+    "faster-whisper",
 ]
 
 [project.optional-dependencies]
