@@ -255,60 +255,62 @@ def finish(T: Timings, stats: dict, out: Path):
 
 
 def render_report(T: Timings, s: dict) -> str:
-    L = ["## 耗时", "", "| 步骤 | 秒 |", "|---|---:|"]
+    L = ["## Timings", "", "| Step | Seconds |", "|---|---:|"]
     for k, v in T.steps.items():
         L.append(f"| {k} | {v:.1f} |")
-    L.append(f"| **合计** | **{T.to_dict()['total']:.1f}** |")
-    L += ["", "## 统计", "", "| 指标 | 值 |", "|---|---:|"]
+    L.append(f"| **Total** | **{T.to_dict()['total']:.1f}** |")
+    L += ["", "## Statistics", "", "| Metric | Value |", "|---|---:|"]
     vi = s.get("video_info", {})
     if vi:
-        L.append(f"| 视频时长 | {vi.get('duration', 0):.1f}s ({vi.get('width')}x{vi.get('height')}) |")
-    L.append(f"| demucs 人声分离 | {'是' if s.get('demucs') else '否（跳过）'} |")
+        L.append(f"| Video duration | {vi.get('duration', 0):.1f}s ({vi.get('width')}x{vi.get('height')}) |")
+    L.append(f"| Vocal separation (demucs) | {'yes' if s.get('demucs') else 'no (skipped)'} |")
     d = s.get("dialogue")
     if d:
-        L.append(f"| 对白来源 | {d['source']} (asr={d.get('asr_backend')}, vad={d.get('vad_backend')}) |")
-        L.append(f"| 对白句数 | {d['lines']} |")
-        L.append(f"| 未字幕但 VAD 检出的语音段 | {d['uncaptioned_vad_segments']} |")
-        L.append(f"| 对白总时长 | {d['speech_seconds']}s |")
+        L.append(f"| Dialogue source | {d['source']} (asr={d.get('asr_backend')}, vad={d.get('vad_backend')}) |")
+        L.append(f"| Dialogue lines | {d['lines']} |")
+        L.append(f"| Uncaptioned speech found by VAD | {d['uncaptioned_vad_segments']} |")
+        L.append(f"| Total dialogue time | {d['speech_seconds']}s |")
         c = d.get("calibration") or {}
         if c:
-            L.append(f"| VAD 校准移动的字幕条数 | {c.get('moved', 0)}（平均位移 {c.get('mean_abs_shift', 0):.2f}s） |")
+            L.append(f"| Subtitle cues moved by VAD | {c.get('moved', 0)} (mean shift {c.get('mean_abs_shift', 0):.2f}s) |")
     w = s.get("windows")
     if w:
-        L.append(f"| 对白空隙数 | {w['gaps']}（非对白总时长 {w['non_speech_seconds']}s） |")
-        L.append(f"| 强瞬态数 | {w['transients']} |")
-        L.append(f"| 被瞬态切分/裁剪的窗口 | {w['split_by_transient']} |")
-        L.append(f"| 过短丢弃的片段（<1.5s） | {w['pieces_too_short']} |")
-        L.append(f"| **可用窗口总数** | **{w['windows']}**（本次处理 {w['processed']}，合计 {w['window_seconds']}s） |")
+        L.append(f"| Dialogue gaps | {w['gaps']} ({w['non_speech_seconds']}s without dialogue) |")
+        L.append(f"| Strong transients | {w['transients']} |")
+        L.append(f"| Windows cut by transient guards | {w['split_by_transient']} |")
+        L.append(f"| Pieces dropped as too short (<1.5s) | {w['pieces_too_short']} |")
+        L.append(f"| **Usable windows** | **{w['windows']}** (processed {w['processed']}, {w['window_seconds']}s in total) |")
         if w.get("long_windows_split"):
-            L.append(f"| 按镜头切分的长窗口（>12s） | {w['long_windows_split']} 个 → 切分后共 {w['after_split']} 个窗口 |")
+            L.append(f"| Long windows split (>12s) | {w['long_windows_split']} -> {w['after_split']} windows after splitting |")
     if "shots" in s:
-        L.append(f"| 镜头数 | {s['shots']} |")
+        L.append(f"| Shots | {s['shots']} |")
     if "scenes" in s:
-        L.append(f"| 场景批次（模型调用次数） | {s['scenes']['non_empty']} |")
+        L.append(f"| Scene batches (model calls) | {s['scenes']['non_empty']} |")
     g = s.get("llm")
     if g:
-        L.append(f"| 模型 | {g['provider']} / {g['model']}（{s.get('config', {}).get('lang')}），输入 {g['input_tokens']} / 输出 {g['output_tokens']} tokens |")
-        L.append(f"| importance_score 分布 (0-5) | {g['score_histogram']} |")
-        L.append(f"| 重要性 ≤2 被过滤 | {g['filtered_low_score']} |")
-        L.append(f"| 模型漏答的窗口 | {g['missing_in_response']} |")
-        L.append(f"| 超出字数/词数上限的解说 | {g['over_limit']} |")
-        L.append(f"| 被过滤掉复述对白/致谢句子的解说 | {g.get('echo_or_credit_removed', 0)} |")
-        L.append(f"| 仍含摄影术语的解说 | {g.get('meta_phrase_narrations', 0)} |")
-        L.append(f"| 进入 TTS 的解说 | {g['candidates']} |")
+        L.append(f"| Model | {g['provider']} / {g['model']} ({s.get('config', {}).get('lang')}), "
+                 f"{g['input_tokens']} input / {g['output_tokens']} output tokens |")
+        L.append(f"| importance_score histogram (0-5) | {g['score_histogram']} |")
+        L.append(f"| Filtered (score <= 2) | {g['filtered_low_score']} |")
+        L.append(f"| Windows the model skipped | {g['missing_in_response']} |")
+        L.append(f"| Narrations over budget | {g['over_limit']} |")
+        L.append(f"| Narrations with dialogue echo / credits removed | {g.get('echo_or_credit_removed', 0)} |")
+        L.append(f"| Narrations still containing camera jargon | {g.get('meta_phrase_narrations', 0)} |")
+        L.append(f"| Narrations sent to TTS | {g['candidates']} |")
     t = s.get("tts")
     if t:
-        L.append(f"| 直接放得下 | {t['direct']} |")
-        L.append(f"| 变速后放下（≤1.2x） | {t['stretched']}（平均 {t.get('stretch_mean', '-')}x，最大 {t.get('stretch_max', '-')}x，方法 {t.get('stretch_method')}） |")
-        L.append(f"| 改用 narration_short | {t['used_short']} |")
-        L.append(f"| 太长丢弃 | {t['dropped']} |")
-        L.append(f"| TTS 失败 | {t['tts_errors']} |")
+        L.append(f"| Fit as is | {t['direct']} |")
+        L.append(f"| Fit after time-stretch (<=1.2x) | {t['stretched']} (mean {t.get('stretch_mean', '-')}x, "
+                 f"max {t.get('stretch_max', '-')}x, method {t.get('stretch_method')}) |")
+        L.append(f"| Used narration_short | {t['used_short']} |")
+        L.append(f"| Dropped as too long | {t['dropped']} |")
+        L.append(f"| TTS failures | {t['tts_errors']} |")
         for dr in t.get("drop_reasons", []):
-            L.append(f"| &nbsp;&nbsp;丢弃 {dr['window_id']} | {dr['reason']} |")
+            L.append(f"| &nbsp;&nbsp;dropped {dr['window_id']} | {dr['reason']} |")
     m = s.get("mix")
     if m:
-        L.append(f"| **最终解说条数** | **{m['kept']}**（ad.vtt {m['vtt_cues']} 条，解说总时长 {m['narration_seconds']}s，"
-                 f"覆盖非对白时间 {m['coverage_of_non_speech'] * 100:.0f}%） |")
+        L.append(f"| **Narrations played** | **{m['kept']}** ({m['vtt_cues']} cues in ad.vtt, {m['narration_seconds']}s of narration, "
+                 f"{m['coverage_of_non_speech'] * 100:.0f}% of non-dialogue time) |")
     return "\n".join(L) + "\n"
 
 

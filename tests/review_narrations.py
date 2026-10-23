@@ -19,8 +19,8 @@ for n in N["narrations"]:
     if n["status"] == "kept":
         head += f" variant={n['variant']} stretch={n.get('stretch', 1.0):.2f} dur={n['tts_duration']}s"
     print(head)
-    print(f"    前: {cb}\n    后: {ca}")
+    print(f"    before: {cb}\n    after: {ca}")
     if n["narration"]:
-        print(f"    解说[{n['len']}]: {n['narration']}\n    短版[{n['len_short']}]: {n['narration_short']}")
+        print(f"    narration[{n['len']}]: {n['narration']}\n    short[{n['len_short']}]: {n['narration_short']}")
     if n.get("fit_log"):
         print(f"    fit: {n['fit_log']}")
