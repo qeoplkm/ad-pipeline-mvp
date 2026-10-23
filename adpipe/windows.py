@@ -135,6 +135,13 @@ def split_long_windows(windows: list[dict], shots: list[tuple[float, float]], cf
         if we - bounds[-1] < cfg.min_subwindow and len(bounds) > 1:
             bounds.pop()
         bounds.append(we)
+        # fallback: a piece still longer than long_window (no usable shot cut inside) is cut into equal parts
+        refined = [bounds[0]]
+        for a, b in zip(bounds, bounds[1:]):
+            k = math.ceil((b - a) / cfg.long_window) if b - a > cfg.long_window else 1
+            refined += [a + (b - a) * i / k for i in range(1, k)] + [b]
+        n_time = len(refined) - len(bounds)
+        bounds = refined
         if len(bounds) <= 2:
             out.append(w)
             continue
@@ -146,6 +153,7 @@ def split_long_windows(windows: list[dict], shots: list[tuple[float, float]], cf
             budget = max(0, int(math.floor((dur - cfg.chars_reserve_sec) * cfg.unit_rate())))
             key = "max_words" if cfg.lang == "en" else "max_chars"
             sub.update({"id": f"{w['id']}{chr(ord('a') + k)}", "parent": w["id"], "part": [k + 1, len(parts)],
+                        "split_by": "shots+time" if n_time else "shots",
                         "start": round(a, 3), "end": round(b, 3), "duration": round(dur, 3),
                         "budget": budget, "budget_short": max(0, int(math.floor(budget * cfg.short_ratio))),
                         key: budget})

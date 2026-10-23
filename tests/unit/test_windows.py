@@ -68,3 +68,22 @@ def test_short_window_not_split():
     w = {"id": "w001", "start": 0.0, "end": 10.0, "duration": 10.0}
     out, n = split_long_windows([w], [(0.0, 5.0), (5.0, 10.0)], cfg)
     assert n == 0 and out == [w]
+
+
+def test_long_window_without_shot_cuts_is_split_by_time():
+    cfg = Config(lang="en")
+    w = {"id": "w007", "start": 100.0, "end": 127.0, "duration": 27.0, "budget": 0, "budget_short": 0}
+    out, n = split_long_windows([w], [(90.0, 140.0)], cfg)
+    assert n == 1 and [x["id"] for x in out] == ["w007a", "w007b", "w007c"]
+    assert [round(x["duration"], 3) for x in out] == [9.0, 9.0, 9.0]
+    assert all(x["duration"] <= cfg.long_window for x in out)
+    assert out[0]["split_by"] == "shots+time"
+
+
+def test_long_shot_piece_is_refined_by_time():
+    cfg = Config(lang="en")
+    w = {"id": "w014", "start": 248.0, "end": 285.0, "duration": 37.0, "budget": 0, "budget_short": 0}
+    out, _ = split_long_windows([w], [(240.0, 253.0), (253.0, 258.0), (258.0, 300.0)], cfg)
+    assert all(x["duration"] <= cfg.long_window for x in out)
+    assert out[0]["start"] == 248.0 and out[-1]["end"] == 285.0
+    assert [x["start"] for x in out][:3] == [248.0, 253.0, 258.0]

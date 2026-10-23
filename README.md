@@ -85,7 +85,7 @@ Re-rendering uses `adpipe/rerender.py` and needs a complete run folder with `aud
 
 1. **Audio.** ffmpeg extracts the soundtrack. demucs `htdemucs` splits it into vocals and background, called through the API and saved as float32. The CLI's default clip handling rescales a whole stem whenever one sample clips, which once dropped the vocals by 15 dB.
 2. **Dialogue timing.** With subtitles, each cue edge snaps to the nearest voice-activity boundary within 0.6 s. Without subtitles, English uses faster-whisper for the words and the VAD speech segments for line boundaries. Whisper's own word times stretch across silences, and it hallucinates "Thank you." over music, so words more than 1 s from detected speech are dropped. Mandarin uses FunASR, rebuilding sentences from token timestamps. Speech the VAD finds on the vocal stem without a caption is also protected.
-3. **Windows.** Gaps between dialogue lines get 0.2 s of padding after a line and 0.25 s before the next. A window must be at least 1.5 s. Budget = floor((duration − 0.2) × rate). Strong onsets on the background stem (robust z-score ≥ 8, at most 3 per minute) get a ±0.4 s guard that narration may not cover. Windows longer than 12 s are split at shot boundaries (pieces ≥ 3 s), so each description plays over the shots it describes.
+3. **Windows.** Gaps between dialogue lines get 0.2 s of padding after a line and 0.25 s before the next. A window must be at least 1.5 s. Budget = floor((duration − 0.2) × rate). Strong onsets on the background stem (robust z-score ≥ 8, at most 3 per minute) get a ±0.4 s guard that narration may not cover. Windows longer than 12 s are split at shot boundaries (pieces ≥ 3 s), and any piece still longer than 12 s is split into equal parts, so each description plays over the shots it describes.
 4. **Visuals.** PySceneDetect `AdaptiveDetector` finds the shots. Each window gets 4 frames spread across its shots, tiled into a 2x2 grid with OpenCV.
 5. **Generation.** Shots are grouped into ~90 s scenes. Each scene of up to 8 windows is **one** model call, containing every grid, the scene's timed dialogue, each window's time, budget and surrounding lines, and the descriptions already played. The model returns JSON `{importance_score, narration, narration_short}` under a schema, and windows scoring 2 or less stay silent. A post-filter removes sentences that read out on-screen text matching nearby dialogue, and production credits.
 6. **TTS and fitting.** edge-tts synthesizes each line, `librosa.effects.trim` removes silence, and the clip is fitted into its window: as is, or time-stretched up to 1.2x, or replaced by the short version, or dropped with a logged reason.
@@ -163,7 +163,9 @@ Example: window w011 (153–191 s) was one 51-word, 19 s paragraph. In v2 it is 
 
 Cost: about 65k input and 13k output tokens per 8-minute run in v2.
 
-**Still open:** one 27 s window has no shot cut long enough to split on and needs a duration-based fallback. "Don't fill the budget" barely changed the total word count, so whether narration feels crowded needs real listeners.
+**Duration fallback (v3):** a piece that is still longer than 12 s after splitting at shots, such as a 27 s stretch with no usable cut, is now split into equal parts. On *Tears of Steel* this gives 49 windows (longest 11.7 s) and 48 narrations (longest 7.2 s, down from 9.9 s), with all checks passing.
+
+**Still open:** "Don't fill the budget" barely changed the total word count, so whether narration feels crowded needs real listeners.
 
 ### What this says about the core question
 
