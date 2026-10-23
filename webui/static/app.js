@@ -61,6 +61,12 @@ async function renderForm() {
       <div><label for="model">Model (blank = default)</label><input id="model" name="model" type="text" placeholder="${esc(prov.default_model || "provider default")}"></div>
       <div><label for="voice">Voice (blank = default)</label><input id="voice" name="voice" type="text" placeholder="en-US-JennyNeural"></div>
     </div>
+    <label for="density">Narration density</label>
+    <select id="density" name="density">
+      <option value="1.0">Full: narration may fill each gap</option>
+      <option value="0.75">Medium: leave about a quarter of each gap silent</option>
+      <option value="0.5">Sparse: leave about half of each gap silent</option>
+    </select>
     <label for="characters">Cast list (optional JSON: [{"name": "...", "description": "..."}])</label>
     <textarea id="characters" name="characters" placeholder='[{"name": "Thom", "description": "young man, dark hair, leather jacket"}]'></textarea>
     <div class="row">

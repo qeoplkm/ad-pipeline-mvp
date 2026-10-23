@@ -43,6 +43,7 @@ Useful options:
 - `--provider mock` skips the LLM and uses canned text, so you can test the audio side with no key.
 - `--srt` uses subtitle timing, with cue edges snapped to detected speech. Without it the pipeline transcribes: faster-whisper `large-v3-turbo` for English, FunASR paraformer-zh for Mandarin, WhisperX as a fallback (`pip install -e .[whisperx]`).
 - `--reuse` reuses stems, dialogue, shots, LLM responses and TTS already in `--out`. LLM responses are reused only if the request is byte-identical.
+- `--density 0.3–1.0` sets how much of each dialogue gap narration may fill (default 1.0; 0.5 leaves about half of each gap silent).
 - `--max-windows N` processes only the first N windows, for cheap API tests. `--stop-after windows|grids|llm|tts` stops early for debugging.
 - `characters.json` is a hand-filled cast list (name + visible description). Leave it empty and the model uses consistent visible identifiers ("the woman in the red dress").
 - Model weights (demucs, FunASR, Whisper) download into the project's `.cache/`.
@@ -165,7 +166,16 @@ Cost: about 65k input and 13k output tokens per 8-minute run in v2.
 
 **Duration fallback (v3):** a piece that is still longer than 12 s after splitting at shots, such as a 27 s stretch with no usable cut, is now split into equal parts. On *Tears of Steel* this gives 49 windows (longest 11.7 s) and 48 narrations (longest 7.2 s, down from 9.9 s), with all checks passing.
 
-**Still open:** "Don't fill the budget" barely changed the total word count, so whether narration feels crowded needs real listeners.
+**Narration density (`--density`).** Asking the model not to fill the budget barely changed the word count, so density is now an explicit setting: the budget becomes floor((duration × density − 0.2) × rate). Windows stay the same; only how much may be said changes.
+
+| Tears of Steel | density 1.0 (full) | density 0.5 (sparse) |
+|---|---:|---:|
+| Narrations | 48 | 45 |
+| Words | 539 | 278 |
+| Narration time | 174 s | 92 s |
+| Share of non-dialogue time narrated | 50% | 26% |
+
+Sparse keeps the key facts ("Title: 40 years later.", "Thom grips a rope and rubs his shoulder.") and drops secondary detail. Which density blind viewers prefer is the first question for listening tests.
 
 ### What this says about the core question
 

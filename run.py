@@ -37,6 +37,8 @@ def parse_args():
     ap.add_argument("--vad", default="auto", choices=["auto", "funasr", "silero", "none"])
     ap.add_argument("--no-vad-extra", action="store_true", help="do not block uncaptioned VAD speech")
     ap.add_argument("--reuse", action="store_true", help="reuse existing stems/dialogue/shots/LLM responses in --out")
+    ap.add_argument("--density", type=float, default=1.0,
+                    help="share of each dialogue gap narration may fill, 0.3-1.0 (default 1.0)")
     ap.add_argument("--max-windows", type=int, help="only process the first N windows (cheap test runs)")
     ap.add_argument("--stop-after", choices=["audio", "dialogue", "windows", "grids", "llm", "tts"])
     ap.add_argument("--clean", action="store_true", help="delete --out first")
@@ -60,10 +62,10 @@ def main():
         log(f".env: loaded {', '.join(loaded)}")
     from adpipe import audio, dialogue, generate, mix as mixmod, scenes, tts, windows as win
 
-    cfg = Config(lang=args.lang)
+    cfg = Config(lang=args.lang, density=min(1.0, max(0.3, args.density)))
     if args.voice:
         cfg.tts_voice = args.voice
-    log(f"lang={cfg.lang} voice={cfg.voice()} budget={cfg.unit_rate()} {cfg.unit_name()}/s")
+    log(f"lang={cfg.lang} voice={cfg.voice()} budget={cfg.unit_rate()} {cfg.unit_name()}/s density={cfg.density}")
     video = Path(args.video).resolve()
     if not video.exists():
         sys.exit(f"video not found: {video}")
@@ -263,6 +265,7 @@ def render_report(T: Timings, s: dict) -> str:
     vi = s.get("video_info", {})
     if vi:
         L.append(f"| Video duration | {vi.get('duration', 0):.1f}s ({vi.get('width')}x{vi.get('height')}) |")
+    L.append(f"| Narration density | {s.get('config', {}).get('density', 1.0)} |")
     L.append(f"| Vocal separation (demucs) | {'yes' if s.get('demucs') else 'no (skipped)'} |")
     d = s.get("dialogue")
     if d:

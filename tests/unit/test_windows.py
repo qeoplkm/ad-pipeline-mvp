@@ -87,3 +87,14 @@ def test_long_shot_piece_is_refined_by_time():
     assert all(x["duration"] <= cfg.long_window for x in out)
     assert out[0]["start"] == 248.0 and out[-1]["end"] == 285.0
     assert [x["start"] for x in out][:3] == [248.0, 253.0, 258.0]
+
+
+def test_density_scales_budget():
+    full, sparse = Config(lang="en"), Config(lang="en", density=0.5)
+    speech = [(0.0, 1.0), (11.0, 12.0)]
+    wf, _ = compute_windows(speech, 12.0, [], lines(*speech), full)
+    ws, _ = compute_windows(speech, 12.0, [], lines(*speech), sparse)
+    d = wf[0]["duration"]
+    assert wf[0]["budget"] == math.floor((d - 0.2) * 2.6)
+    assert ws[0]["budget"] == math.floor((d * 0.5 - 0.2) * 2.6)
+    assert ws[0]["start"] == wf[0]["start"] and ws[0]["end"] == wf[0]["end"]   # windows unchanged, only budgets

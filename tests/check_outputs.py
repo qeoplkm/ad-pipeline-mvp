@@ -44,7 +44,7 @@ for w in W["windows"]:
     check(w["duration"] >= cfg["min_window"] - 1e-6, f"{w['id']} shorter than min_window")
     check(abs(w["end"] - w["start"] - w["duration"]) < 0.01, f"{w['id']} duration mismatch")
     rate = cfg["words_per_sec"] if cfg.get("lang") == "en" else cfg["chars_per_sec"]
-    exp = max(0, math.floor((w["duration"] - cfg["chars_reserve_sec"]) * rate))
+    exp = max(0, math.floor((w["duration"] * cfg.get("density", 1.0) - cfg["chars_reserve_sec"]) * rate))
     check(w["budget"] == exp, f"{w['id']} budget {w['budget']} != {exp}")
     for s, e in speech:
         check(min(e, w["end"]) - max(s, w["start"]) <= 1e-6, f"{w['id']} overlaps speech {s}-{e}")

@@ -20,7 +20,8 @@ class Config:
     min_subwindow: float = 3.0     # sub-windows shorter than this are merged into a neighbour
     chars_per_sec: float = 4.5     # zh: Mandarin TTS comfortable rate (characters / s)
     words_per_sec: float = 2.6     # en: ~155 wpm, comfortable AD narration rate (words / s)
-    chars_reserve_sec: float = 0.2 # budget = floor((duration - 0.2) * rate)
+    chars_reserve_sec: float = 0.2 # budget = floor((duration * density - 0.2) * rate)
+    density: float = 1.0           # share of each gap narration may fill (1.0 = all of it, 0.6 = leave ~40% silent)
     short_ratio: float = 0.6       # narration_short budget = floor(max_chars * 0.6)
     context_before: int = 5        # dialogue lines of context before a window
     context_after: int = 2         # dialogue lines of context after a window
@@ -57,6 +58,9 @@ class Config:
     duck_ramp: float = 0.150
     narration_gain_db: float = 1.0 # narration RMS relative to measured dialogue RMS
     mp3_bitrate: str = "192k"
+
+    def budget_for(self, duration: float) -> int:
+        return max(0, int((duration * self.density - self.chars_reserve_sec) * self.unit_rate() // 1))
 
     def unit_rate(self) -> float:
         return self.words_per_sec if self.lang == "en" else self.chars_per_sec

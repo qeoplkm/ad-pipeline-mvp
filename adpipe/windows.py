@@ -89,7 +89,7 @@ def compute_windows(speech: list[tuple[float, float]], duration: float, transien
             if dur < cfg.min_window:
                 n_short += 1
                 continue
-            budget = max(0, int(math.floor((dur - cfg.chars_reserve_sec) * cfg.unit_rate())))
+            budget = cfg.budget_for(dur)
             before = [l for l in text_lines if l["end"] <= ps + 0.01][-cfg.context_before:]
             after = [l for l in text_lines if l["start"] >= pe - 0.01][:cfg.context_after]
             windows.append({
@@ -150,7 +150,7 @@ def split_long_windows(windows: list[dict], shots: list[tuple[float, float]], cf
         for k, (a, b) in enumerate(parts):
             sub = dict(w)
             dur = b - a
-            budget = max(0, int(math.floor((dur - cfg.chars_reserve_sec) * cfg.unit_rate())))
+            budget = cfg.budget_for(dur)
             key = "max_words" if cfg.lang == "en" else "max_chars"
             sub.update({"id": f"{w['id']}{chr(ord('a') + k)}", "parent": w["id"], "part": [k + 1, len(parts)],
                         "split_by": "shots+time" if n_time else "shots",

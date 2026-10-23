@@ -193,6 +193,7 @@ async def create_run(
     voice: str = Form(""),
     characters: str = Form(""),
     max_windows: int = Form(0),
+    density: float = Form(1.0),
     skip_demucs: bool = Form(False),
 ):
     if lang not in ("en", "zh") or provider not in ("auto", "openai", "claude", "gemini", "mock"):
@@ -230,6 +231,8 @@ async def create_run(
         cmd += ["--model", model.strip()]
     if voice.strip():
         cmd += ["--voice", voice.strip()]
+    if density and 0.3 <= density < 1.0:
+        cmd += ["--density", f"{density:.2f}"]
     if max_windows and max_windows > 0:
         cmd += ["--max-windows", str(int(max_windows))]
     if skip_demucs:
@@ -244,7 +247,7 @@ async def create_run(
         (jd / "characters.json").write_text(json.dumps(chars, ensure_ascii=False, indent=2), encoding="utf-8")
         cmd += ["--characters", str(jd / "characters.json")]
     meta = {"id": run_id, "created": time.time(), "video": str(video), "srt": str(srt) if srt else None,
-            "lang": lang, "provider": provider, "model": model or None, "voice": voice or None,
+            "lang": lang, "density": density, "provider": provider, "model": model or None, "voice": voice or None,
             "status": "running", "cmd": [Path(c).name if i == 0 else c for i, c in enumerate(cmd)]}
     (jd / "job.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     log_path = jd / "run.log"
