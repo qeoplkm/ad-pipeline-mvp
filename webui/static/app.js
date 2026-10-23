@@ -93,11 +93,11 @@ async function renderForm() {
 }
 
 // ------------------------------------------------------------------ run page
-async function viewRun(id) {
+async function viewRun(id, startAt) {
   $app.innerHTML = `<div class="crumbs"><a href="#/">← Runs</a></div><h1>${esc(id)}</h1><div id="runbody" class="muted">Loading…</div>`;
   const run = await api(`/api/runs/${encodeURIComponent(id)}`);
   if (run.status !== "done") return viewRunProgress(id, run);
-  return viewResult(id, run);
+  return viewResult(id, run, startAt);
 }
 
 function viewRunProgress(id, run) {
@@ -125,7 +125,7 @@ function viewRunProgress(id, run) {
   document.getElementById("cancel").onclick = async () => { await api(`/api/runs/${encodeURIComponent(id)}/cancel`, { method: "POST" }); };
 }
 
-async function viewResult(id, run) {
+async function viewResult(id, run, startAt) {
   const body = document.getElementById("runbody");
   const d = await api(`/api/runs/${encodeURIComponent(id)}/data`);
   const bust = Date.now();
@@ -161,6 +161,7 @@ async function viewResult(id, run) {
   </section>
   <div id="review"></div>`;
   setupPlayer(d, run);
+  if (startAt) { const v = document.getElementById("vid"); v.addEventListener("loadedmetadata", () => { v.currentTime = startAt; }, { once: true }); }
   if (typeof renderReview === "function") renderReview(id, d);
 }
 
@@ -249,8 +250,8 @@ function renderStats(run, d) {
 function route() {
   clearTimers();
   const h = location.hash || "#/";
-  const m = h.match(/^#\/run\/(.+)$/);
-  (m ? viewRun(decodeURIComponent(m[1])) : viewHome()).catch(e => { $app.innerHTML = `<div class="panel err">${esc(e.message)}</div>`; });
+  const m = h.match(/^#\/run\/([^?]+)(?:\?t=([\d.]+))?$/);
+  (m ? viewRun(decodeURIComponent(m[1]), m[2] ? +m[2] : 0) : viewHome()).catch(e => { $app.innerHTML = `<div class="panel err">${esc(e.message)}</div>`; });
 }
 window.addEventListener("hashchange", route);
 route();

@@ -69,8 +69,14 @@ Useful options:
 
 A local single-page app, bound to 127.0.0.1 only, with no build step (FastAPI and plain HTML/JS).
 
+![Player: the video plays with the AD mix in sync, narration as captions, and a timeline of dialogue, windows and narration](docs/ui-player.jpg)
+
+![Review table: key-frame grids, scores, surrounding dialogue and editable narration with word budgets](docs/ui-review.jpg)
+
+*Screenshots show* Tears of Steel *(© Blender Foundation, CC-BY 3.0).*
+
 - **Runs:** start a run from a video in `input/` or an upload, with optional subtitles, language, provider, model, voice and cast list. Follow the live log. Earlier output folders (`out*/`) are listed too. UI runs go to `jobs/<id>/`.
-- **Player:** plays the video with `mixed.mp3` kept in sync and `ad.vtt` as captions. Switch between *AD mix* and *Original*, or tick **Hide picture** to listen as a blind viewer would. A clickable timeline shows dialogue, windows and narration. Keys: Space plays and pauses, ←/→ skip 5 s.
+- **Player:** plays the video with `mixed.mp3` kept in sync and `ad.vtt` as captions. Switch between *AD mix* and *Original*, or tick **Hide picture** to listen as a blind viewer would. A clickable timeline shows dialogue, windows and narration. Keys: Space plays and pauses, ←/→ skip 5 s. Link to a moment with `#/run/<id>?t=155`.
 - **Review:** every window with its key-frame grid, score, status, the dialogue just before and after, and an editable narration with a live word count against the budget. Edit the text or the short version, or mute a window, then **Save & re-render**. This re-synthesizes the speech, re-fits, re-mixes and rewrites `ad.vtt` in seconds, with no model call. The model's original text is kept as `model_narration`.
 
 Re-rendering uses `adpipe/rerender.py` and needs a complete run folder with `audio/full.wav`.
