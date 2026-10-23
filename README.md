@@ -1,7 +1,5 @@
 # ad-pipeline-mvp
 
-[![tests](https://github.com/qeoplkm/ad-pipeline-mvp/actions/workflows/tests.yml/badge.svg)](https://github.com/qeoplkm/ad-pipeline-mvp/actions/workflows/tests.yml)
-
 **Automatic audio description (AD) for film clips, as a validation prototype.**
 
 Audio description is the narration that tells blind and low-vision viewers what is happening on screen, spoken in the gaps between lines of dialogue. This project runs the whole loop on a 3–10 minute clip:
