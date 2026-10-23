@@ -205,7 +205,9 @@ def lines_from_vad_and_words(vad: list[tuple[float, float]], words: list[tuple[f
         w = w.strip()
         if not w:
             continue
-        mid = (s_ + e_) / 2.0
+        # Whisper stretches a word's START back across a preceding silence, never its end:
+        # anchor each word near its end so it lands in the segment where it is actually spoken
+        mid = max(s_, e_ - 0.15)
         best, best_d = None, None
         for i, (a, b) in enumerate(segs):
             d = 0.0 if a <= mid <= b else min(abs(mid - a), abs(mid - b))

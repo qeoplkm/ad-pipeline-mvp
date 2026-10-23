@@ -30,6 +30,7 @@ dependencies = [
     "uvicorn[standard]",
     "python-multipart",
     "faster-whisper",
+    "pytest",
 ]
 
 [project.optional-dependencies]

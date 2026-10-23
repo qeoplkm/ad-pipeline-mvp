@@ -1,5 +1,7 @@
 # ad-pipeline-mvp
 
+[![tests](https://github.com/qeoplkm/ad-pipeline-mvp/actions/workflows/tests.yml/badge.svg)](https://github.com/qeoplkm/ad-pipeline-mvp/actions/workflows/tests.yml)
+
 **Automatic audio description (AD) for film clips, as a validation prototype.**
 
 Audio description is the narration that tells blind and low-vision viewers what is happening on screen, spoken in the gaps between lines of dialogue. This project runs the whole loop on a 3–10 minute clip:
@@ -86,6 +88,14 @@ Re-rendering uses `adpipe/rerender.py` and needs a complete run folder with `aud
 7. **Mix.** The original audio is ducked −9 dB under each narration with 150 ms linear ramps. Narration is loudness-matched to the dialogue, summed, soft-limited, and exported as `mixed.mp3`, `ad_track.wav` and `ad.vtt`.
 
 ## Self-tests
+
+Fast offline unit tests (no models, no network; run in CI on every push):
+
+```bash
+.venv/bin/python -m pytest tests/unit -q
+```
+
+End-to-end checks on a synthetic clip:
 
 ```bash
 .venv/bin/python tests/make_synthetic_clip.py tests/synthetic_en en   # 75 s clip: TTS dialogue, impulse sound effects, hard cuts
