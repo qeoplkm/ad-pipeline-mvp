@@ -179,7 +179,7 @@ Sparse keeps the key facts ("Title: 40 years later.", "Thom grips a rope and rub
 
 ### What this says about the core question
 
-Factual accuracy, timing and never talking over dialogue can be guaranteed automatically. Style and editorial choices cannot yet: what to skip, which on-screen text matters, how dense to be. The next step is listening sessions with blind and low-vision viewers, comparing this output against professional AD.
+Factual accuracy, timing and never talking over dialogue can be guaranteed automatically. Style and editorial choices cannot yet: what to skip, which on-screen text matters, how dense to be. The next step is listening sessions with blind and low-vision viewers, comparing this output against professional AD. [docs/listening-study.md](docs/listening-study.md) has a recruitment post, a session script and a questionnaire comparing full density, sparse density and professional AD.
 
 ## Earlier experiment: Mandarin
 
