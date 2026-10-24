@@ -318,6 +318,25 @@ def run_data(run_id: str):
     }
 
 
+@app.get("/api/runs/{run_id}/cues")
+def run_cues(run_id: str):
+    """Timed narration cues for the browser extension: when each clip plays, its text and its audio file."""
+    out = _out_dir(run_id)
+    gen = _read(out / "narrations.json", {}) or {}
+    stats = _read(out / "stats.json", {}) or {}
+    cues = []
+    for n in gen.get("narrations", []):
+        if n.get("status") != "kept" or not n.get("tts_path"):
+            continue
+        cues.append({"id": n["window_id"], "start": n["actual_start"], "end": n["actual_end"],
+                     "text": n["text_used"], "audio": f"/files/{run_id}/{n['tts_path']}"})
+    cues.sort(key=lambda c: c["start"])
+    cfg = stats.get("config") or {}
+    return {"run": run_id, "lang": cfg.get("lang", "en"), "duck_db": cfg.get("duck_db", -9.0),
+            "duck_ramp": cfg.get("duck_ramp", 0.15), "duration": (stats.get("video_info") or {}).get("duration"),
+            "video_name": Path(stats.get("video") or "").name, "cues": cues}
+
+
 @app.get("/files/{run_id}/{path:path}")
 def run_file(run_id: str, path: str):
     out = _out_dir(run_id).resolve()

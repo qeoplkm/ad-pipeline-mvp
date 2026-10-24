@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "AD Pipeline: Audio Description Player",
+  "version": "0.1.0",
+  "description": "Plays machine-written audio description over a web video, with ducking, captions and screen-reader announcements. Uses a local ad-pipeline-mvp server.",
+  "permissions": ["activeTab", "scripting", "storage", "offscreen"],
+  "host_permissions": ["http://127.0.0.1:8765/*", "http://localhost:8765/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Audio description", "default_popup": "popup.html" }
+}

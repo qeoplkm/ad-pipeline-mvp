@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Extension test page</title>
+<style>body{margin:0;background:#111;color:#ddd;font:14px system-ui}video{width:100%;max-height:90vh;display:block}</style></head>
+<body>
+<!-- A plain page with one <video>, for trying the browser extension locally. ?run=<id> picks the video. -->
+<video id="v" controls preload="auto"></video>
+<p style="padding:8px">Extension test page. Attach a run from the extension popup, then play.</p>
+<script>
+  const run = new URLSearchParams(location.search).get("run") || "out";
+  document.getElementById("v").src = `/video/${encodeURIComponent(run)}`;
+</script>
+</body>
+</html>
