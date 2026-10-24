@@ -82,6 +82,38 @@ A local single-page app, bound to 127.0.0.1 only, with no build step (FastAPI an
 
 Re-rendering uses `adpipe/rerender.py` and needs a complete run folder with `audio/full.wav`.
 
+## Browser extension
+
+A Chrome extension (Manifest V3) in `extension/` plays a run's audio description over any web video, such as the same film on YouTube. This is the "side-loaded track" product form.
+
+<img src="docs/extension-popup.png" alt="Extension popup: pick a description run, set the start time, choose narration audio, ducking, on-screen text and screen-reader announcements, then attach" width="320">
+
+**Install (developer mode):**
+
+1. Start the local server: `.venv/bin/python -m webui.server`. The extension reads runs and audio from `http://127.0.0.1:8765`.
+2. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and choose the `extension/` folder.
+3. Open the video page, click the extension icon, pick the run, and click **Attach to this tab**. Then play.
+
+Try it on *Tears of Steel* on YouTube (`https://www.youtube.com/watch?v=R6MlUcmOul8`) with the `out` run and start time 0, because that run was made from the film's first 8 minutes.
+
+**What it does:**
+
+- Follows the page's `<video>`: play, pause, seek and playback speed.
+- Plays each narration clip at its time. The clips play from an offscreen extension document, so the site's security policy can't block them.
+- Lowers the video's volume under each narration with 150 ms ramps, at the duck depth you choose (default −9 dB), and restores it on detach. Volume changes you make yourself are kept as the new baseline.
+- Shows the narration as a caption, which stays visible in fullscreen, and can announce it to a screen reader through a live region.
+- Shortcuts: **Alt+Shift+D** turns narration on and off. **Alt+Shift+R** repeats the last description. Change them at `chrome://extensions/shortcuts`.
+- **Start time** shifts the whole description, for runs made from a clip that starts later in the full video.
+- Runs only in tabs you attach (`activeTab`), and detaches itself when the page loads a different video, for example on YouTube navigation or an ad.
+
+**Limits:** it needs the local server running; one attached tab plays at a time; a site's own volume logic can fight the ducking; matching a run to a page video is manual (pick the run, set the start time).
+
+**Test:** `tests/extension_e2e.py` loads the extension into Chrome for Testing and runs 14 checks against the server's test page (`/static/ext-test.html`): sync, ducking, captions, screen-reader text, pause, toggle, repeat, start-time offset, the popup flow, and clean detach.
+
+```bash
+CHROME="/path/to/Google Chrome for Testing" .venv/bin/python tests/extension_e2e.py out
+```
+
 ## How it works
 
 1. **Audio.** ffmpeg extracts the soundtrack. demucs `htdemucs` splits it into vocals and background, called through the API and saved as float32. The CLI's default clip handling rescales a whole stem whenever one sample clips, which once dropped the vocals by 15 dB.

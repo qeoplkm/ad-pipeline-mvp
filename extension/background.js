@@ -51,6 +51,28 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   return false;
 });
 
+chrome.commands.onCommand.addListener(async (command, tab) => {
+  const tabId = tab ? tab.id : (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
+  if (!tabId) return;
+  const key = `tab-${tabId}`;
+  const info = (await chrome.storage.session.get(key))[key];
+  if (!info) return;                                   // not attached to this tab
+  if (command === "toggle-narration") {
+    info.opts.audio = !info.opts.audio;
+    await chrome.tabs.sendMessage(tabId, { type: "ad-update", opts: { audio: info.opts.audio }, announce: info.opts.audio ? "Narration on" : "Narration off" });
+    if (!info.opts.audio) await relay({ action: "stop" });
+    await chrome.storage.session.set({ [key]: info });
+  } else if (command === "repeat-last") {
+    await chrome.tabs.sendMessage(tabId, { type: "ad-repeat" });
+  }
+});
+
+// the page switched to another video (e.g. YouTube navigation without reload): forget the attachment
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg.type === "detached-by-page" && sender.tab) { chrome.storage.session.remove(`tab-${sender.tab.id}`); relay({ action: "stop" }); }
+  return false;
+});
+
 chrome.tabs.onRemoved.addListener(tabId => chrome.storage.session.remove(`tab-${tabId}`));
 chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (info.status === "loading") { chrome.storage.session.remove(`tab-${tabId}`); relay({ action: "stop" }); }

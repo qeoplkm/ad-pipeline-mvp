@@ -4,7 +4,7 @@
   "use strict";
   if (window.__adExt) { window.__adExt.detach(); }
 
-  const state = { video: null, cues: [], opts: {}, timer: null, active: null, baseVol: 1, ourVol: null, duckGain: 0.355,
+  const state = { video: null, src: null, lastCue: null, cues: [], opts: {}, timer: null, active: null, baseVol: 1, ourVol: null, duckGain: 0.355,
                   ramp: 0.15, overlay: null, live: null, listeners: [] };
 
   const send = msg => chrome.runtime.sendMessage({ type: "audio", ...msg }).catch(() => {});
@@ -32,15 +32,21 @@
     return g;
   }
 
+  function announce(text) {
+    if (!state.live) return;
+    // no timers (they are throttled in background tabs): toggle an invisible trailing character so that even
+    // a repeated text is a change the screen reader announces
+    state.flip = !state.flip;
+    state.live.textContent = text + (state.flip ? "\u00a0" : "");
+  }
+
   function show(cue) {
+    if (cue) state.lastCue = cue;
     if (state.overlay) {
       state.overlay.textContent = cue ? cue.text : "";
       state.overlay.style.display = cue && state.opts.overlay ? "block" : "none";
     }
-    if (cue && state.opts.announce && state.live) {
-      state.live.textContent = "";
-      setTimeout(() => { state.live.textContent = cue.text; }, 30);   // re-set so screen readers announce it
-    }
+    if (cue && state.opts.announce) announce(cue.text);
   }
 
   function tick() {
@@ -70,7 +76,13 @@
   function bindVideo(v) {
     unbindVideo();
     state.video = v;
+    state.src = v.currentSrc || v.src;
     state.baseVol = v.volume;
+    on(v, "loadstart", () => {
+      // a different video loaded into the same element (single-page sites): this description no longer applies
+      const now = v.currentSrc || v.src;
+      if (state.src && now && now !== state.src) { chrome.runtime.sendMessage({ type: "detached-by-page" }).catch(() => {}); detach(); }
+    });
     on(v, "pause", () => send({ action: "pause" }));
     on(v, "play", () => { state.active = null; });            // re-trigger the current cue from the right offset
     on(v, "seeking", () => { state.active = null; send({ action: "stop" }); show(null); });
@@ -104,6 +116,12 @@
     Object.assign(live.style, { position: "fixed", width: "1px", height: "1px", overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" });
     document.documentElement.append(o, live);
     state.overlay = o; state.live = live;
+    // keep the caption visible in fullscreen: move it into the fullscreen element and back
+    state.onFs = () => {
+      const host = document.fullscreenElement && document.fullscreenElement.tagName !== "VIDEO" ? document.fullscreenElement : document.documentElement;
+      host.append(o, live);
+    };
+    document.addEventListener("fullscreenchange", state.onFs);
   }
 
   function attach(data, opts) {
@@ -123,6 +141,7 @@
   function detach() {
     clearInterval(state.timer);
     unbindVideo();
+    if (state.onFs) document.removeEventListener("fullscreenchange", state.onFs);
     if (state.overlay) state.overlay.remove();
     if (state.live) state.live.remove();
     send({ action: "stop" });
@@ -133,9 +152,21 @@
   function onMsg(msg, sender, reply) {
     if (msg.type === "ad-attach") { reply(attach(msg.data, msg.opts || {})); return false; }
     if (msg.type === "ad-detach") { detach(); reply({ ok: true }); return false; }
-    if (msg.type === "ad-update") { Object.assign(state.opts, msg.opts || {}); if (!state.opts.overlay) show(null); reply({ ok: true }); return false; }
+    if (msg.type === "ad-update") {
+      Object.assign(state.opts, msg.opts || {});
+      if (!state.opts.overlay && state.overlay) state.overlay.style.display = "none";
+      if (msg.opts && msg.opts.audio === false) send({ action: "stop" });
+      if (msg.opts && msg.opts.audio === true) state.active = null;   // resume the current cue
+      if (msg.announce) announce(msg.announce);
+      reply({ ok: true }); return false;
+    }
+    if (msg.type === "ad-repeat") {
+      if (state.lastCue) { announce(state.lastCue.text); if (state.overlay && state.opts.overlay) { state.overlay.textContent = state.lastCue.text; state.overlay.style.display = "block"; } }
+      else announce("No description yet");
+      reply({ ok: true }); return false;
+    }
     if (msg.type === "ad-state") {
-      reply({ ok: true, t: state.video ? adTime() : null, active: state.active, volume: state.video ? state.video.volume : null,
+      reply({ ok: true, attached: true, t: state.video ? adTime() : null, active: state.active, volume: state.video ? state.video.volume : null,
               base: state.baseVol, overlay: state.overlay ? state.overlay.textContent : null, live: state.live ? state.live.textContent : null });
       return false;
     }

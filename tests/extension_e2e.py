@@ -45,8 +45,8 @@ class Cdp:
                     raise RuntimeError(msg["error"])
                 return msg["result"]
 
-    async def ev(self, expr):
-        r = await self.call("Runtime.evaluate", expression=expr, awaitPromise=True, returnByValue=True)
+    async def ev(self, expr, timeout=20):
+        r = await asyncio.wait_for(self.call("Runtime.evaluate", expression=expr, awaitPromise=True, returnByValue=True), timeout)
         if r.get("exceptionDetails"):
             raise RuntimeError(r["exceptionDetails"].get("exception", {}).get("description", r["exceptionDetails"]))
         return r["result"].get("value")
@@ -88,6 +88,46 @@ async def main():
     await asyncio.sleep(0.3)
     results["after_detach"] = await page.ev("({ volume: document.getElementById('v').volume, overlay: !!document.querySelector('[data-ad-ext]') })")
 
+    # --- scenario 2: the real popup UI with a start-time offset, then the shortcut messages
+    OFFSET = 10.0
+    tab_id = await sw.ev(f'(async () => (await chrome.tabs.query({{url: "{BASE}/static/ext-test.html*"}}))[0].id)()')
+    ext_id = next(t for t in targets() if t["type"] == "service_worker" and t["url"].endswith("/background.js"))["url"].split("/")[2]
+    await sw.ev(f'chrome.tabs.create({{url: "chrome-extension://{ext_id}/popup.html?tabId={tab_id}"}}).then(() => true)')
+    popup = await connect(lambda t: t["type"] == "page" and "popup.html" in t["url"])
+    await popup.ev(f"new Promise(r => {{ const f = () => (document.getElementById('run') && [...document.getElementById('run').options].some(o => o.value === '{RUN}')) ? r() : setTimeout(f, 100); f(); }})")
+    results["popup_runs"] = await popup.ev("[...document.getElementById('run').options].map(o => o.value)")
+    if os.environ.get("E2E_SHOT"):   # save a screenshot of the popup (setup view) for the docs
+        import base64
+        await popup.ev(f"document.getElementById('run').value = '{RUN}'; document.getElementById('run').dispatchEvent(new Event('change')); true")
+        h = await popup.ev("Math.ceil(document.body.getBoundingClientRect().bottom + 14)")
+        shot = await popup.call("Page.captureScreenshot", format="png", captureBeyondViewport=True, clip={"x": 0, "y": 0, "width": 372, "height": h, "scale": 2})
+        Path(os.environ["E2E_SHOT"]).write_bytes(base64.b64decode(shot["data"]))
+    if os.environ.get("E2E_DEBUG"):
+        print("DEBUG popup:", await popup.ev("({onclick: typeof document.getElementById('attach').onclick, run: document.getElementById('run').value, setupHidden: document.getElementById('setup').hidden, status: document.getElementById('status').textContent})"), flush=True)
+        await popup.call("Runtime.enable")
+    await popup.ev(f"""(async () => {{ document.getElementById('run').value = '{RUN}';
+        document.getElementById('startAt').value = '{OFFSET}'; document.getElementById('attach').click();
+        for (let i = 0; i < 50 && document.getElementById('attached').hidden; i++) await new Promise(r => setTimeout(r, 100));
+        return document.getElementById('status').textContent; }})()""")
+    results["popup_status"] = await popup.ev("document.getElementById('status').textContent + ' | attached view: ' + !document.getElementById('attached').hidden")
+    await page.ev(f"(async () => {{ const v = document.getElementById('v'); v.volume = 1; v.currentTime = {cue['start'] + OFFSET + 0.3}; await v.play(); }})()")
+    await asyncio.sleep(1.0)
+    results["offset_during"] = await page.ev("({ overlay: document.querySelector('[data-ad-ext=overlay]')?.textContent, volume: document.getElementById('v').volume, t: document.getElementById('v').currentTime, paused: document.getElementById('v').paused, ext: !!window.__adExt })")
+    if os.environ.get("E2E_DEBUG"):
+        print("DEBUG popup_status:", results["popup_status"], "| offset_during:", results["offset_during"], flush=True)
+    await sw.ev(f"chrome.tabs.sendMessage({tab_id}, {{type: 'ad-update', opts: {{audio: false}}, announce: 'Narration off'}})")
+    await asyncio.sleep(0.2)
+    results["after_toggle_off"] = {
+        "offscreen": await sw.ev("chrome.runtime.sendMessage({target: 'offscreen', action: 'state'})"),
+        "live": await page.ev("document.querySelector('[data-ad-ext=live]')?.textContent")}
+    await sw.ev(f"chrome.tabs.sendMessage({tab_id}, {{type: 'ad-repeat'}})")
+    await asyncio.sleep(0.2)
+    results["after_repeat"] = await page.ev("document.querySelector('[data-ad-ext=live]')?.textContent")
+    await page.ev("document.getElementById('v').pause()")
+    await popup.ev("document.getElementById('detach').click()")
+    await asyncio.sleep(0.4)
+    results["popup_detach"] = await page.ev("({ volume: document.getElementById('v').volume, ui: !!document.querySelector('[data-ad-ext]') })")
+
     d, off = results["during"], results["offscreen"]
     checks = {
         "attached": bool(results["attach"] and results["attach"].get("ok")),
@@ -95,9 +135,15 @@ async def main():
         "clip position matches video": abs((off.get("time") or 0) - (d["t"] - cue["start"])) < 0.35,
         "video ducked to about -9 dB": abs(d["volume"] - 10 ** (-9 / 20)) < 0.03,
         "caption shows cue text": d["overlay"] == cue["text"] and d["overlayShown"] == "block",
-        "screen reader live region": d["live"] == cue["text"],
+        "screen reader live region": (d["live"] or "").strip() == cue["text"],
         "pause pauses narration": results["after_pause"].get("paused") is True,
         "detach restores volume and removes UI": abs(results["after_detach"]["volume"] - 1.0) < 0.01 and not results["after_detach"]["overlay"],
+        "popup lists the run": RUN in results["popup_runs"],
+        "popup attaches": "attached view: true" in results["popup_status"],
+        "start-time offset applied": results["offset_during"]["overlay"] == cue["text"],
+        "toggle off stops narration and announces it": results["after_toggle_off"]["offscreen"].get("paused") is True and (results["after_toggle_off"]["live"] or "").strip() == "Narration off",
+        "repeat announces the last description": (results["after_repeat"] or "").strip() == cue["text"],
+        "popup detach restores the page": abs(results["popup_detach"]["volume"] - 1.0) < 0.01 and not results["popup_detach"]["ui"],
     }
     print(json.dumps(results, indent=1, default=str)[:3000])
     for k, v in checks.items():
