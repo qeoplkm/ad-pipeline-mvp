@@ -406,7 +406,16 @@ import difflib  # noqa: E402
 _SENT_RE = re.compile(r"[^.!?。！？]+[.!?。！？]?[\"”’]?\s*")
 _QUOTE_RE = re.compile(r"[\"“”「」『』]([^\"“”「」『』]{3,})[\"“”「」『』]")
 _TEXT_LEAD_RE = re.compile(r"^\s*(?:(?:on-screen |magenta |white |red )?text(?: reads)?|title|caption|字幕|文字)[:：,]?\s*", re.I)
-_CREDIT_RE = re.compile(r"supported by|funded by|in association with|film fund|presents|production of|出品|资助|联合摄制", re.I)
+# Whole words only: "represents" and "reproduction of" are narration, not credits.
+# "presents" is a studio card ("X presents", "X presents a feature film"), not the verb
+# ("Thom presents the letter", "she presents a medal").
+_CREDIT_RE = re.compile(
+    r"\b(?:supported by|funded by|in association with|film fund|production of)\b"
+    r"|\bpresents\b(?:\s+(?:a|an)\s+(?:\w+\s+){0,4}(?:film|picture|production)\b"
+    r"|(?!\s+(?:the|a|an|his|her|their|its|this|that|him|them)\b))"
+    r"|出品|资助|联合摄制",
+    re.I,
+)
 META_RE = re.compile(r"\b(we see|the camera|the shot|the view|the image|the frame|cut to|close-up|playback|through the scope)\b|镜头|画面中|切至|我们看到", re.I)
 
 
