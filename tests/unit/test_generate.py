@@ -32,6 +32,25 @@ def test_removes_funding_credit():
     assert kept == "A rocket rises." and len(removed) == 1
 
 
+def test_credit_filter_keeps_words_that_only_contain_credit_phrases():
+    text = "A poster shows a reproduction of the painting. The mural represents the old city."
+    kept, removed = clean_narration(text, [])
+    assert kept == text and removed == []
+
+
+def test_credit_filter_keeps_presents_used_as_a_verb():
+    text = "Thom presents the letter to Celia. She presents a medal."
+    kept, removed = clean_narration(text, [])
+    assert kept == text and removed == []
+
+
+def test_credit_filter_still_drops_studio_cards():
+    kept, removed = clean_narration(
+        "Night on the canal. Blender Foundation presents. Studio Name presents a feature film.", [])
+    assert kept == "Night on the canal."
+    assert len(removed) == 2
+
+
 def test_count_units():
     assert count_units("Thom's robot-hand rises.", "en") == 3
     assert count_units("阿宝摔倒了。", "zh") == 5
