@@ -8,6 +8,7 @@ ad.vtt parses and matches narrations.json. With truth.json also compares dialogu
 """
 from __future__ import annotations
 
+import html
 import json
 import math
 import re
@@ -88,7 +89,10 @@ cues = re.findall(r"^(w\d{3}[a-z]?)\n(\d\d:\d\d:\d\d\.\d{3}) --> (\d\d:\d\d:\d\d
 check(len(cues) == len(kept), f"vtt cues {len(cues)} != kept {len(kept)}")
 for cid, a, b, text in cues:
     n = next((x for x in kept if x["window_id"] == cid), None)
-    check(n is not None and n["text_used"] == text, f"vtt text mismatch {cid}")
+    # write_vtt escapes '&' '<' '>' and joins wrapped lines into one cue
+    raw = (n or {}).get("text_used") or ""
+    want = " ".join(p.strip() for p in raw.replace("\r\n", "\n").replace("\r", "\n").split("\n") if p.strip())
+    check(n is not None and html.unescape(text) == want, f"vtt text mismatch {cid}")
 
 # ground truth
 if truth:
