@@ -86,23 +86,26 @@ def read_json(path: Path):
         return json.load(f)
 
 
+def _split(seconds: float, per_second: int) -> tuple[int, int, int]:
+    """Round to the display precision first, then split, so 59.97 s becomes 01:00.0, not 00:60.0."""
+    units = round(max(0.0, float(seconds)) * per_second)
+    whole, frac = divmod(units, per_second)
+    return whole // 60, whole % 60, frac
+
+
 def fmt_ts(seconds: float, ms: bool = True) -> str:
     """HH:MM:SS.mmm (WebVTT compatible)."""
-    seconds = max(0.0, float(seconds))
-    h = int(seconds // 3600)
-    m = int((seconds % 3600) // 60)
-    s = seconds % 60
     if ms:
-        return f"{h:02d}:{m:02d}:{s:06.3f}"
-    return f"{h:02d}:{m:02d}:{s:04.1f}"
+        mins, s, frac = _split(seconds, 1000)
+        return f"{mins // 60:02d}:{mins % 60:02d}:{s:02d}.{frac:03d}"
+    mins, s, frac = _split(seconds, 10)
+    return f"{mins // 60:02d}:{mins % 60:02d}:{s:02d}.{frac}"
 
 
 def fmt_short(seconds: float) -> str:
     """M:SS.s - compact form for prompts and frame labels."""
-    seconds = max(0.0, float(seconds))
-    m = int(seconds // 60)
-    s = seconds % 60
-    return f"{m:02d}:{s:04.1f}"
+    mins, s, frac = _split(seconds, 10)
+    return f"{mins:02d}:{s:02d}.{frac}"
 
 
 def run_cmd(cmd: list[str], quiet: bool = True, check: bool = True) -> subprocess.CompletedProcess:
