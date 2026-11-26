@@ -4,7 +4,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-import soundfile as sf
 
 from .config import Config
 from .util import fmt_ts, log, run_cmd
@@ -19,6 +18,7 @@ def _rms(x: np.ndarray) -> float:
 
 
 def measure_dialogue_rms(ref_wav: Path, speech: list[tuple[float, float]]) -> float:
+    import soundfile as sf
     y, sr = sf.read(str(ref_wav), dtype="float32", always_2d=True)
     mono = y.mean(axis=1)
     chunks = [mono[int(s * sr): int(e * sr)] for s, e in speech if e > s]
@@ -55,6 +55,7 @@ def _soft_clip(x: np.ndarray, knee: float = 0.95) -> np.ndarray:
 
 
 def mix(full_wav: Path, narrations: list[dict], out_dir: Path, cfg: Config, dialogue_rms: float) -> dict:
+    import soundfile as sf
     y, sr = sf.read(str(full_wav), dtype="float32", always_2d=True)
     n = y.shape[0]
     if dialogue_rms < _db(-45.0):  # separation or VAD went wrong; fall back to a sane fixed level
@@ -94,11 +95,23 @@ def mix(full_wav: Path, narrations: list[dict], out_dir: Path, cfg: Config, dial
             "dialogue_rms_db": round(20 * np.log10(dialogue_rms + 1e-9), 1)}
 
 
+def vtt_cue_text(text: str) -> str:
+    """One cue payload. WebVTT treats '&' and '<' as markup, '-->' as a timing line, and a blank line as the end of the cue."""
+    text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    lines = []
+    for line in text.split("\n"):
+        line = line.strip().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        if line:
+            lines.append(line)
+    return " ".join(lines)
+
+
 def write_vtt(narrations: list[dict], path: Path, meta: dict) -> int:
     kept = sorted((m for m in narrations if m.get("status") == "kept"), key=lambda m: m["actual_start"])
     lines = ["WEBVTT", "", f"NOTE ad-pipeline-mvp | provider={meta.get('provider')} model={meta.get('model')} "
              f"voice={meta.get('voice')}", ""]
     for m in kept:
-        lines += [m["window_id"], f"{fmt_ts(m['actual_start'])} --> {fmt_ts(m['actual_end'])}", m["text_used"], ""]
+        lines += [m["window_id"], f"{fmt_ts(m['actual_start'])} --> {fmt_ts(m['actual_end'])}",
+                  vtt_cue_text(m.get("text_used") or ""), ""]
     path.write_text("\n".join(lines), encoding="utf-8")
     return len(kept)
