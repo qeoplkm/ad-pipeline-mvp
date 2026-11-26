@@ -42,7 +42,11 @@ def parse_args():
     ap.add_argument("--max-windows", type=int, help="only process the first N windows (cheap test runs)")
     ap.add_argument("--stop-after", choices=["audio", "dialogue", "windows", "grids", "llm", "tts"])
     ap.add_argument("--clean", action="store_true", help="delete --out first")
-    return ap.parse_args()
+    args = ap.parse_args()
+    if args.max_windows is not None and args.max_windows < 0:
+        # A negative N would slice from the end and silently drop the last windows.
+        ap.error("--max-windows must be 0 or more")
+    return args
 
 
 def load_characters(path: str) -> list[dict]:
