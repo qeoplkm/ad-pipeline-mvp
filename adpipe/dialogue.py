@@ -9,6 +9,7 @@ VAD backends: FunASR fsmn-vad -> silero-vad -> none.
 """
 from __future__ import annotations
 
+import html
 import re
 from pathlib import Path
 
@@ -32,7 +33,10 @@ def parse_srt(path: Path) -> list[dict]:
     import srt
     lines = []
     for sub in srt.parse(_read_text(path), ignore_errors=True):
-        text = TAG_RE.sub("", sub.content).replace("\n", " ").strip()
+        # Cues store '&', quotes and non-breaking spaces as HTML entities, and sometimes
+        # the italics tags themselves ('&lt;i&gt;'). Unescape first so those tags still get stripped.
+        text = html.unescape(sub.content).replace("\xa0", " ")
+        text = TAG_RE.sub("", text).replace("\n", " ").strip()
         if not text:
             continue
         lines.append({
