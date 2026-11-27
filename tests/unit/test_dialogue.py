@@ -46,3 +46,15 @@ def test_parse_srt(tmp_path: Path):
     p.write_text("1\n00:00:01,000 --> 00:00:02,500\n<i>Hello</i>\nthere\n\n2\n00:00:03,000 --> 00:00:04,000\n\n", encoding="utf-8")
     lines = parse_srt(p)
     assert lines == [{"start": 1.0, "end": 2.5, "text": "Hello there", "source": "srt"}]
+
+
+def test_parse_srt_unescapes_html_entities(tmp_path: Path):
+    p = tmp_path / "a.srt"
+    p.write_text(
+        "1\n00:00:01,000 --> 00:00:02,000\n<i>Tom &amp; Jerry</i>\n\n"
+        "2\n00:00:03,000 --> 00:00:04,000\nHe said &quot;hi&quot;&#39;s&nbsp;up\n\n"
+        "3\n00:00:05,000 --> 00:00:06,000\n&lt;i&gt;A &amp; B&lt;/i&gt;\n\n",
+        encoding="utf-8",
+    )
+    lines = parse_srt(p)
+    assert [l["text"] for l in lines] == ["Tom & Jerry", "He said \"hi\"'s up", "A & B"]
